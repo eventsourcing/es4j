@@ -218,6 +218,10 @@ public class MVStoreJournal extends AbstractService implements Journal, JournalM
         layouts = store.openMap("layouts");
     }
 
+    @Override public void flush() {
+        store.sync();
+    }
+
     @Override
     protected void doStop() {
         transactionStore.close();

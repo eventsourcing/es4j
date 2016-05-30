@@ -70,6 +70,8 @@ public interface Journal extends Service {
      */
     long journal(Command<?> command, Listener listener, LockProvider lockProvider) throws Exception;
 
+    default void flush() {}
+
     /**
      * Retrieves a command or event by UUID
      *

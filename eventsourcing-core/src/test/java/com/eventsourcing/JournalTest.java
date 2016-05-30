@@ -172,6 +172,8 @@ public abstract class JournalTest<T extends Journal> {
         });
         assertEquals(events.size(), 1);
 
+        journal.flush();
+
         Optional<Entity> entity = journal.get(command.uuid());
         assertTrue(entity.isPresent());
         assertEquals(command.uuid(), entity.get().uuid());

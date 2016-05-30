@@ -41,6 +41,7 @@ public class DisruptorCommandConsumer extends AbstractService implements Command
     private final Map<Class<? extends Command>, Deserializer> deserializers = new HashMap<>();
 
     private static class CommandEvent {
+        boolean endOfBatch;
         @Getter @Setter
         Collection<EntitySubscriber> entitySubscribers = new ArrayList<>();
         Map<Class<? extends Command>, Command> commands = new HashMap<>();
@@ -202,6 +203,7 @@ public class DisruptorCommandConsumer extends AbstractService implements Command
         timestamp.update();
         Command command = event.getCommand();
         command.timestamp(timestamp.clone());
+        event.endOfBatch = endOfBatch;
     }
 
     private void journal(CommandEvent event) throws Exception {
@@ -209,6 +211,9 @@ public class DisruptorCommandConsumer extends AbstractService implements Command
         event.lockProvider = new TrackingLockProvider(this.lockProvider);
         event.lockProvider.startAsync().awaitRunning();
         journal.journal(command, new JournalListener(event, indexEngine, journal, command), event.lockProvider);
+        if (event.endOfBatch) {
+            journal.flush();
+        }
     }
 
     private void complete(CommandEvent event) throws Exception {
