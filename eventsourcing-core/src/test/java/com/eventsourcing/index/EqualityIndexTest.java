@@ -25,10 +25,9 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.stream.StreamSupport;
 
 import static com.googlecode.cqengine.query.QueryFactory.*;
-import static com.googlecode.cqengine.query.StreamFactory.streamOf;
+import static com.googlecode.cqengine.stream.StreamFactory.streamOf;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 

@@ -28,11 +28,10 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static com.eventsourcing.index.EntityQueryFactory.*;
-import static com.eventsourcing.queries.QueryFactory.*;
-import static com.googlecode.cqengine.query.StreamFactory.*;
+import static com.eventsourcing.queries.QueryFactory.isLatestEntity;
+import static com.googlecode.cqengine.stream.StreamFactory.streamOf;
 
 @Draft @RFC(url = "http://rfc.eventsourcing.com/spec:3/CEP")
 public interface DeletedProtocol extends Protocol, ModelQueries {

@@ -20,10 +20,9 @@ import org.unprotocols.coss.RFC;
 
 import java.util.Optional;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static com.eventsourcing.index.EntityQueryFactory.equal;
-import static com.googlecode.cqengine.query.StreamFactory.streamOf;
+import static com.googlecode.cqengine.stream.StreamFactory.streamOf;
 
 @Draft @RFC(url = "http://rfc.eventsourcing.com/spec:3/CEP")
 public interface DescriptionProtocol extends Protocol, ModelQueries {

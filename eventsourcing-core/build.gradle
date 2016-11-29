@@ -10,7 +10,7 @@ dependencies {
     compile 'org.reflections:reflections:0.9.10'
 
     // Indexing
-    compile 'com.googlecode.cqengine:cqengine:2.8.0'
+    compile 'com.googlecode.cqengine:cqengine:2.9.1'
 
     testCompile project(':eventsourcing-inmem')
     testCompile project(':eventsourcing-repository')
