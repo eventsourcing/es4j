@@ -9,6 +9,8 @@ package com.eventsourcing.postgresql;
 
 
 import com.googlecode.cqengine.index.support.CloseableIterator;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.SneakyThrows;
 
 import java.sql.Connection;
@@ -17,12 +19,19 @@ import java.sql.ResultSet;
 
 public abstract class PostgreSQLStatementIterator<T> implements CloseableIterator<T> {
 
+    public static abstract class Listener<T> {
+        public void resultSetConsumed(ResultSet resultSet, T t) {}
+        public void resultSetClosed() {}
+    }
 
     protected ResultSet resultSet;
     protected final PreparedStatement statement;
     protected final Connection connection;
 
     private boolean nextCalled = true;
+
+    @Getter @Setter
+    public Listener<T> listener;
 
     @SneakyThrows
     public PostgreSQLStatementIterator(PreparedStatement statement, Connection connection, boolean lazy) {
@@ -41,7 +50,7 @@ public abstract class PostgreSQLStatementIterator<T> implements CloseableIterato
             resultSet = statement.executeQuery();
         }
 
-        // if the result set is already closed,
+        // if the result set is already resultSetClosed,
         // there are no more results to expect
         if (resultSet.isClosed()) {
             return false;
@@ -62,7 +71,11 @@ public abstract class PostgreSQLStatementIterator<T> implements CloseableIterato
 
     @Override public T next() {
         nextCalled = true;
-        return fetchNext();
+        T result = fetchNext();
+        if (listener != null) {
+            listener.resultSetConsumed(resultSet, result);
+        }
+        return result;
     }
 
     protected abstract T fetchNext();
@@ -72,6 +85,11 @@ public abstract class PostgreSQLStatementIterator<T> implements CloseableIterato
     public void close() {
         if (resultSet != null && !resultSet.isClosed()) resultSet.close();
         if (!statement.isClosed()) statement.close();
+
+        if (listener != null) {
+            listener.resultSetClosed();
+        }
+
         if (!connection.isClosed()) connection.close();
     }
 }

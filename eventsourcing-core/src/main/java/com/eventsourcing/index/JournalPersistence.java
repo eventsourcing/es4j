@@ -73,9 +73,6 @@ public abstract class JournalPersistence<T extends Entity> implements Persistenc
         }
 
         @Override
-        public abstract CloseableIterator<EntityHandle<T>> iterator(QueryOptions queryOptions);
-
-        @Override
         public boolean add(EntityHandle<T> tEntityHandle, QueryOptions queryOptions) {
             return true; // this is taken care of with journalling
         }

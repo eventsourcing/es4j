@@ -9,13 +9,16 @@ package com.eventsourcing.postgresql;
 
 import com.eventsourcing.*;
 import com.eventsourcing.hlc.HybridTimestamp;
+import com.eventsourcing.queries.options.EagerFetching;
 import com.eventsourcing.layout.*;
 import com.eventsourcing.layout.binary.BinarySerialization;
+import com.eventsourcing.queries.options.NotSeenBy;
 import com.google.common.base.Joiner;
 import com.google.common.io.BaseEncoding;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.AbstractService;
 import com.googlecode.cqengine.index.support.CloseableIterator;
+import com.googlecode.cqengine.query.option.QueryOptions;
 import com.impossibl.postgres.jdbc.PGDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import lombok.Getter;
@@ -26,6 +29,8 @@ import org.osgi.service.component.annotations.Reference;
 
 import javax.sql.DataSource;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -244,42 +249,91 @@ public class PostgreSQLJournal extends AbstractService implements Journal {
         return result;
     }
 
-    @Override public <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass) {
-        return commandIterator(klass, false);
+    @Override public <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass,
+                                                                                                  QueryOptions queryOptions) {
+        return entityIterator(klass, queryOptions);
     }
 
-    @Override public <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass) {
-        return eventIterator(klass, false);
-    }
-
-    @Override public <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass, boolean eagerFetching) {
-        return entityIterator(klass, eagerFetching);
-    }
-
-    @Override public <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass, boolean eagerFetching) {
-        return entityIterator(klass, eagerFetching);
+    @Override public <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass, QueryOptions
+            queryOptions) {
+        return entityIterator(klass, queryOptions);
     }
 
     @SneakyThrows
-    private <T extends Entity> CloseableIterator<EntityHandle<T>> entityIterator(Class<T> klass, boolean eagerFetching) {
+    private <T extends Entity> CloseableIterator<EntityHandle<T>> entityIterator(Class<T> klass, QueryOptions queryOptions) {
+        boolean eagerFetching = queryOptions.get(EagerFetching.class) != null;
         Connection connection = dataSource.getConnection();
 
         Layout<?> layout = getLayout(klass);
         String hash = BaseEncoding.base16().encode(layout.getHash());
 
+        String join = " LEFT JOIN seenby_v1 ON seenby_v1.layout = ? AND seenby_v1.seen_by = ? WHERE " +
+                          "___id___ > COALESCE(seenby_v1.seen, 0)";
         if (!eagerFetching) {
-            PreparedStatement s = connection.prepareStatement("SELECT uuid FROM layout_v1_" + hash);
+            PreparedStatement s = connection.prepareStatement("SELECT uuid, ___id___  FROM layout_v1_" + hash + join);
             s.setFetchSize(MAX_FETCH_SIZE);
-            return new EntityIterator<>(this, s, connection);
+            s.setBytes(1, layout.getHash());
+            NotSeenBy notSeenBy = queryOptions.get(NotSeenBy.class);
+            s.setBytes(2, notSeenBy == null ? new byte[]{} : notSeenBy.getId());
+            return new EntityIterator<>(this, s, connection, queryOptions, layout);
         } else {
             ReaderFunction reader = readerFunctions.get(hash);
             List<? extends Property<?>> properties = layout.getProperties();
             String columns = Joiner.on(", ").join(properties.stream()
-                                                        .map(p -> "\"" + p.getName() + "\"").collect(Collectors.toList()));
-            String query = "SELECT " + columns + ", uuid AS ___uuid___ FROM layout_v1_" + hash;
+                                                        .map(p -> "t.\"" + p.getName() + "\"").collect(Collectors
+                                                                                                              .toList()));
+            String query = "SELECT " + columns + ", uuid AS ___uuid___, ___id___ FROM layout_v1_" + hash + " AS t" + join;
             PreparedStatement s = connection.prepareStatement(query);
             s.setFetchSize(MAX_FETCH_SIZE);
-            return new EagerEntityIterator<>(this, s, connection, reader);
+            s.setBytes(1, layout.getHash());
+            NotSeenBy notSeenBy = queryOptions.get(NotSeenBy.class);
+            s.setBytes(2, notSeenBy == null ? new byte[]{} : notSeenBy.getId());
+            return new EagerEntityIterator<>(this, s, connection, reader, queryOptions, layout);
+        }
+    }
+
+    static private class SeenByListener<R extends Entity> extends PostgreSQLStatementIterator
+            .Listener<EntityHandle<R>> {
+
+        private final byte[] identifier;
+        private final Connection connection;
+        private final Layout<?> layout;
+        private BigInteger lastSeen;
+
+        public SeenByListener(Connection connection, QueryOptions queryOptions, Layout<?> layout) {
+            this.connection = connection;
+            this.layout = layout;
+            NotSeenBy notSeenBy = queryOptions.get(NotSeenBy.class);
+            if (notSeenBy != null) {
+                identifier = notSeenBy.getId();
+            } else {
+                identifier = null;
+            }
+        }
+
+        @SneakyThrows
+        @Override public void resultSetConsumed(ResultSet resultSet, EntityHandle<R> rEntityHandle) {
+            if (identifier != null) {
+                BigInteger next = resultSet.getBigDecimal("___id___").toBigInteger();
+                if (lastSeen == null || next.compareTo(lastSeen) > 0) {
+                    lastSeen = next;
+                }
+            }
+        }
+
+        @SneakyThrows
+        @Override public void resultSetClosed() {
+            if (identifier != null && lastSeen != null) {
+                try (PreparedStatement s = connection
+                        .prepareStatement("INSERT INTO seenby_v1 (layout, seen_by, seen) VALUES (?, ?, ?) " +
+                                          " ON CONFLICT (layout, seen_by) DO UPDATE SET seen = ?")) {
+                    s.setBytes(1, layout.getHash());
+                    s.setBytes(2, identifier);
+                    s.setBigDecimal(3, new BigDecimal(lastSeen));
+                    s.setBigDecimal(4, new BigDecimal(lastSeen));
+                    s.executeUpdate();
+                }
+            }
         }
     }
 
@@ -288,8 +342,9 @@ public class PostgreSQLJournal extends AbstractService implements Journal {
         private final Journal journal;
 
         public EntityIterator(Journal journal, PreparedStatement statement,
-                              Connection connection) {
+                              Connection connection, QueryOptions queryOptions, Layout<?> layout) {
             super(statement, connection, true);
+            setListener(new SeenByListener<>(connection, queryOptions, layout));
             this.journal = journal;
         }
 
@@ -306,8 +361,10 @@ public class PostgreSQLJournal extends AbstractService implements Journal {
         private final ReaderFunction reader;
 
         public EagerEntityIterator(Journal journal, PreparedStatement statement,
-                                   Connection connection, ReaderFunction reader) {
+                                   Connection connection, ReaderFunction reader, QueryOptions queryOptions,
+                                   Layout<?> layout) {
             super(statement, connection, true);
+            setListener(new SeenByListener<>(connection, queryOptions, layout));
             this.journal = journal;
             this.reader = reader;
         }
@@ -399,6 +456,16 @@ public class PostgreSQLJournal extends AbstractService implements Journal {
             try (PreparedStatement s = connection.prepareStatement(timestampFunction)) {
                 s.executeUpdate();
             }
+            try (PreparedStatement s = connection
+                    .prepareStatement("CREATE TABLE IF NOT EXISTS seenby_v1 (\n" +
+                                              "  layout  BYTEA NOT NULL,\n" +
+                                              "  seen_by BYTEA NOT NULL,\n" +
+                                              "  seen    SERIAL8 NOT NULL,\n" +
+                                              "  PRIMARY KEY (\"layout\", \"seen_by\")\n" +
+                                              ")")) {
+                s.executeUpdate();
+            }
+
         }
     }
 
@@ -504,27 +571,40 @@ public class PostgreSQLJournal extends AbstractService implements Journal {
             layoutsByClass.put(aClass.getName(), layout);
             byte[] fingerprint = layout.getHash();
             String encoded = BaseEncoding.base16().encode(fingerprint);
-            layoutsByHash.put(encoded, layout);
-            Connection connection = dataSource.getConnection();
+            if (!layoutsByHash.containsKey(encoded)) {
+                layoutsByHash.put(encoded, layout);
+                try (Connection connection = dataSource.getConnection()) {
 
-            String columns = defineColumns(connection, layout);
+                    String columns = defineColumns(connection, layout);
 
-            String createTable = "CREATE TABLE IF NOT EXISTS layout_v1_" + encoded + " (" +
-                    "uuid UUID PRIMARY KEY," + columns + ")";
-            PreparedStatement s = connection.prepareStatement(createTable);
-            s.execute();
-            s.close();
-            s = connection.prepareStatement("COMMENT ON TABLE layout_v1_" + encoded + " IS '" +
-                                                    layout.getName() + "'");
-            s.execute();
-            s.close();
-            connection.close();
+                    String createTable = "CREATE TABLE IF NOT EXISTS layout_v1_" + encoded + " (" + "uuid UUID PRIMARY KEY," + columns + ")";
 
-            InsertFunction insertFunction = new InsertFunction(layout);
-            insertFunctions.put(encoded, insertFunction);
+                    try (PreparedStatement s = connection.prepareStatement(createTable)) {
+                        s.execute();
+                    }
 
-            ReaderFunction readerFunction = new ReaderFunction(layout);
-            readerFunctions.put(encoded, readerFunction);
+                    // We are not changing v1 here because it's just an extension of v1, the existing columns
+                    // were not changed. This serial ID is necessary to enable NotSeenBy query option (and potentially
+                    // others)
+                    String addId = "ALTER TABLE layout_v1_" + encoded + " ADD COLUMN IF NOT EXISTS ___id___ BIGSERIAL UNIQUE";
+
+                    try (PreparedStatement s = connection.prepareStatement(addId)) {
+                        s.execute();
+                    }
+
+                    String comment = "COMMENT ON TABLE layout_v1_" + encoded + " IS '" + layout.getName() + "'";
+                    try (PreparedStatement s = connection.prepareStatement(comment)) {
+                        s.execute();
+                    }
+
+                }
+
+                InsertFunction insertFunction = new InsertFunction(layout);
+                insertFunctions.put(encoded, insertFunction);
+
+                ReaderFunction readerFunction = new ReaderFunction(layout);
+                readerFunctions.put(encoded, readerFunction);
+            }
         }
 
     }

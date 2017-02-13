@@ -17,6 +17,8 @@ import com.eventsourcing.layout.SerializableComparable;
 import com.eventsourcing.layout.TypeHandler;
 import com.eventsourcing.postgresql.PostgreSQLSerialization;
 import com.eventsourcing.postgresql.PostgreSQLStatementIterator;
+import com.eventsourcing.queries.options.EagerFetching;
+import com.eventsourcing.queries.options.NotSeenBy;
 import com.googlecode.cqengine.index.Index;
 import com.googlecode.cqengine.index.support.*;
 import com.googlecode.cqengine.index.unique.UniqueIndex;
@@ -257,10 +259,6 @@ public abstract class PostgreSQLAttributeIndex<A, O extends Entity> extends Abst
         return attribute;
     }
 
-    protected void addAll(ObjectStore<EntityHandle<O>> objectStore, QueryOptions queryOptions) {
-        addAll(objectStore.iterator(queryOptions), queryOptions);
-    }
-
     @SneakyThrows
     @Override public boolean removeAll(ObjectSet<EntityHandle<O>> objects, QueryOptions queryOptions) {
         try(Connection connection = getDataSource().getConnection()) {
@@ -299,7 +297,8 @@ public abstract class PostgreSQLAttributeIndex<A, O extends Entity> extends Abst
         }
         queryOptions.put(OnConflictDo.class, OnConflictDo.NOTHING);
         queryOptions.put(EagerFetching.class, true);
-        addAll(objectStore, queryOptions);
+        queryOptions.put(NotSeenBy.class, new NotSeenBy(getTableName().getBytes()));
+        addAll(objectStore.iterator(queryOptions), queryOptions);
     }
 
     @SneakyThrows

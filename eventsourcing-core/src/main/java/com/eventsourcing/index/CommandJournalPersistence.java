@@ -10,6 +10,7 @@ package com.eventsourcing.index;
 import com.eventsourcing.Command;
 import com.eventsourcing.EntityHandle;
 import com.eventsourcing.Journal;
+import com.eventsourcing.queries.options.EagerFetching;
 import com.googlecode.cqengine.index.Index;
 import com.googlecode.cqengine.index.support.CloseableIterator;
 import com.googlecode.cqengine.persistence.support.ObjectStore;
@@ -48,7 +49,7 @@ public class CommandJournalPersistence<T extends Command<?, ?>> extends JournalP
 
         @Override
         public CloseableIterator<EntityHandle<T>> iterator(QueryOptions queryOptions) {
-            return journal.commandIterator(klass, queryOptions.get(EagerFetching.class) != null);
+            return journal.commandIterator(klass, queryOptions);
         }
     }
 }

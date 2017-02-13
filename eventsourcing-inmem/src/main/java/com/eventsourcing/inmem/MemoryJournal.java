@@ -17,6 +17,7 @@ import com.eventsourcing.utils.CloseableWrappingIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.AbstractService;
 import com.googlecode.cqengine.index.support.CloseableIterator;
+import com.googlecode.cqengine.query.option.QueryOptions;
 import lombok.Getter;
 import lombok.Setter;
 import org.osgi.service.component.annotations.Component;
@@ -126,7 +127,7 @@ public class MemoryJournal extends AbstractService implements Journal {
     }
 
     @Override
-    public <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass) {
+    public <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass, QueryOptions queryOptions) {
         return new CloseableWrappingIterator<>(commands.values().stream()
                                                        .filter(command -> klass.isAssignableFrom(command.getClass()))
                                                        .map(command -> (EntityHandle<T>) new JournalEntityHandle<T>(
@@ -134,7 +135,7 @@ public class MemoryJournal extends AbstractService implements Journal {
     }
 
     @Override
-    public <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass) {
+    public <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass, QueryOptions queryOptions) {
         return new CloseableWrappingIterator<>(events.values().stream()
                                                      .filter(event -> klass.isAssignableFrom(event.getClass()))
                                                      .map(event -> (EntityHandle<T>) new JournalEntityHandle<T>(this,

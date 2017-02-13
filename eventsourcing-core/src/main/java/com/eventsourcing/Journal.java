@@ -8,15 +8,19 @@
 package com.eventsourcing;
 
 import com.eventsourcing.hlc.HybridTimestamp;
+import com.eventsourcing.queries.QueryFactory;
 import com.eventsourcing.utils.CloseableWrappingIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Service;
 import com.googlecode.cqengine.index.support.CloseableIterator;
+import com.googlecode.cqengine.query.option.QueryOptions;
 import lombok.SneakyThrows;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+
+import static com.eventsourcing.queries.QueryFactory.noQueryOptions;
 
 /**
  * Journal is the storage of all events and commands registered
@@ -60,7 +64,7 @@ public interface Journal extends Service {
      * @return iterator
      */
     default <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass) {
-        return new CloseableWrappingIterator<>(Collections.emptyIterator());
+        return commandIterator(klass, noQueryOptions());
     }
 
     /**
@@ -71,7 +75,7 @@ public interface Journal extends Service {
      * @return iterator
      */
     default <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass) {
-        return new CloseableWrappingIterator<>(Collections.emptyIterator());
+        return eventIterator(klass, noQueryOptions());
     }
 
     /**
@@ -81,10 +85,8 @@ public interface Journal extends Service {
      * @param <T>
      * @return iterator
      */
-    default <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass, boolean
-            eagerFetching) {
-        return commandIterator(klass);
-    }
+    <T extends Command<?, ?>> CloseableIterator<EntityHandle<T>> commandIterator(Class<T> klass,
+                                                                                 QueryOptions queryOptions);
 
     /**
      * Iterate over events of a specific type (through {@code EntityHandler<T>})
@@ -93,9 +95,7 @@ public interface Journal extends Service {
      * @param <T>
      * @return iterator
      */
-    default <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass, boolean eagerFetching) {
-        return eventIterator(klass);
-    }
+    <T extends Event> CloseableIterator<EntityHandle<T>> eventIterator(Class<T> klass, QueryOptions queryOptions);
 
     /**
      * Removes everything from the journal.

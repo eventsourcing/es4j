@@ -5,13 +5,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-package com.eventsourcing.index;
+package com.eventsourcing.queries.options;
 
 import com.googlecode.cqengine.query.option.QueryOptions;
+import lombok.Value;
 
 /**
- * EagerFetching is a {@link QueryOptions} query option that signals to the indexing subsystem to eagerly fetch entities
- * if possible. Useful when iterating over the entire journal and processing the entire batch.
+ * This {@link QueryOptions} query option allows to optimize
+ * iterating over the journal in special circumstances, like an index
+ * that doesn't want to reindex what already has been indexed.
  */
-public final class EagerFetching {
+@Value
+public class NotSeenBy {
+    byte[] id;
 }
