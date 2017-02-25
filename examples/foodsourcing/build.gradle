@@ -43,7 +43,7 @@ if (hasProperty("snapshot") && gitVersion().toString().contentEquals("unspecifie
     throw new GradleException('snapshot version `unspecified');
 }
 
-def eventsourcingVersion = gitVersion()
+def eventsourcingVersion = gitVersion().replaceFirst("v","")
 
 dependencies {
     testCompile 'org.testng:testng:6.9.10'

@@ -32,7 +32,7 @@ if (hasProperty("snapshot") && gitVersion().toString().contentEquals("unspecifie
     throw new GradleException('snapshot version `unspecified');
 }
 
-def gitVsn = gitVersion()
+def gitVsn = gitVersion().replaceFirst("v","")
 
 println("Git version ${gitVsn}")
 
