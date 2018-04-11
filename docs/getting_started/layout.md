@@ -19,7 +19,7 @@ public class User {
 
 This class defines one property (`email`) by a one-parameter constructor and a getter (JavaBean, chaining and fluent naming conventions are supported).
 
-Implemented in the `eventsourcing-layout` package, `com.eventsourcing.layout.Layout` is the main class used to create layouts (please note, however, that most of the time, explicit layout derivation is not necessary because it is doneautomatically by ES4J):
+Implemented in the `eventsourcing-layout` package, `com.eventsourcing.layout.Layout` is the main class used to create layouts (please note, however, that most of the time, explicit layout derivation is not necessary because it is done automatically by ES4J):
 
 ```java
 Layout<User> layout = Layout.forClass(User.class);
