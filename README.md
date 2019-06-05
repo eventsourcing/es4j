@@ -2,6 +2,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/com.eventsourcing/eventsourcing-core.svg?maxAge=2592000)]()
 [ ![Download](https://api.bintray.com/packages/eventsourcing/maven-snapshots/eventsourcing-core/images/download.svg) ](https://bintray.com/eventsourcing/maven-snapshots/eventsourcing-core/_latestVersion)
 [![Join the chat at https://gitter.im/eventsourcing/eventsourcing](https://badges.gitter.im/eventsourcing/eventsourcing.svg)](https://gitter.im/eventsourcing/eventsourcing?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Open Source Helpers](https://www.codetriage.com/eventsourcing/es4j/badges/users.svg)](https://www.codetriage.com/eventsourcing/es4j)
 
 # ![logo](https://eventsourcing.com/android-icon-48x48.png) Eventsourcing for Java
 
