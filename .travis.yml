@@ -1,5 +1,5 @@
 git:
-  depth: 9999999
+  depth: 3
 language: java
 jdk:
   - oraclejdk8
